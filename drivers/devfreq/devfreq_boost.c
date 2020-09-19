@@ -15,6 +15,7 @@
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
 static int dynamic_stune_boost;
 module_param(dynamic_stune_boost, uint, 0644);
+static int boost_slot;
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 enum {
@@ -66,7 +67,7 @@ static void __devfreq_boost_kick(struct boost_dev *b)
 	set_bit(INPUT_BOOST, &b->state);
 
 	#ifdef CONFIG_DYNAMIC_STUNE_BOOST
-	do_stune_boost("top-app", dynamic_stune_boost);
+	do_stune_boost("top-app", dynamic_stune_boost, &boost_slot);
 	#endif
 
 	if (!mod_delayed_work(system_unbound_wq, &b->input_unboost,
@@ -111,7 +112,7 @@ void devfreq_boost_kick_max(enum df_device device, unsigned int duration_ms)
 	struct df_boost_drv *d = &df_boost_drv_g;
 
 	#ifdef CONFIG_DYNAMIC_STUNE_BOOST
-	do_stune_boost("top-app", dynamic_stune_boost);
+	do_stune_boost("top-app", dynamic_stune_boost, &boost_slot);
 	#endif
 
 	__devfreq_boost_kick_max(d->devices + device, duration_ms);
@@ -136,7 +137,7 @@ static void devfreq_input_unboost(struct work_struct *work)
 	wake_up(&b->boost_waitq);
 
 	#ifdef CONFIG_DYNAMIC_STUNE_BOOST
-	reset_stune_boost("top-app");
+	reset_stune_boost("top-app", boost_slot);
 	#endif
 }
 
@@ -149,7 +150,7 @@ static void devfreq_max_unboost(struct work_struct *work)
 	wake_up(&b->boost_waitq);
 
 	#ifdef CONFIG_DYNAMIC_STUNE_BOOST
-	reset_stune_boost("top-app");
+	reset_stune_boost("top-app", boost_slot);
 	#endif
 }
 
@@ -272,7 +273,7 @@ free_handle:
 static void devfreq_boost_input_disconnect(struct input_handle *handle)
 {
 	#ifdef CONFIG_DYNAMIC_STUNE_BOOST
-	reset_stune_boost("top-app");
+	reset_stune_boost("top-app", boost_slot);
 	#endif
 	input_close_device(handle);
 	input_unregister_handle(handle);
