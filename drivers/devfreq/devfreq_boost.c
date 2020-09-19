@@ -9,6 +9,13 @@
 #include <linux/fb.h>
 #include <linux/input.h>
 #include <linux/kthread.h>
+#include <linux/moduleparam.h>
+#include <linux/sched.h>
+
+#ifdef CONFIG_DYNAMIC_STUNE_BOOST
+static int dynamic_stune_boost;
+module_param(dynamic_stune_boost, uint, 0644);
+#endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 enum {
 	SCREEN_OFF,
@@ -57,6 +64,11 @@ static void __devfreq_boost_kick(struct boost_dev *b)
 		return;
 
 	set_bit(INPUT_BOOST, &b->state);
+
+	#ifdef CONFIG_DYNAMIC_STUNE_BOOST
+	do_stune_boost("top-app", dynamic_stune_boost);
+	#endif
+
 	if (!mod_delayed_work(system_unbound_wq, &b->input_unboost,
 		msecs_to_jiffies(CONFIG_DEVFREQ_INPUT_BOOST_DURATION_MS)))
 		wake_up(&b->boost_waitq);
@@ -98,6 +110,10 @@ void devfreq_boost_kick_max(enum df_device device, unsigned int duration_ms)
 {
 	struct df_boost_drv *d = &df_boost_drv_g;
 
+	#ifdef CONFIG_DYNAMIC_STUNE_BOOST
+	do_stune_boost("top-app", dynamic_stune_boost);
+	#endif
+
 	__devfreq_boost_kick_max(d->devices + device, duration_ms);
 }
 
@@ -118,6 +134,10 @@ static void devfreq_input_unboost(struct work_struct *work)
 
 	clear_bit(INPUT_BOOST, &b->state);
 	wake_up(&b->boost_waitq);
+
+	#ifdef CONFIG_DYNAMIC_STUNE_BOOST
+	reset_stune_boost("top-app");
+	#endif
 }
 
 static void devfreq_max_unboost(struct work_struct *work)
@@ -127,6 +147,10 @@ static void devfreq_max_unboost(struct work_struct *work)
 
 	clear_bit(MAX_BOOST, &b->state);
 	wake_up(&b->boost_waitq);
+
+	#ifdef CONFIG_DYNAMIC_STUNE_BOOST
+	reset_stune_boost("top-app");
+	#endif
 }
 
 static void devfreq_update_boosts(struct boost_dev *b, unsigned long state)
@@ -247,6 +271,9 @@ free_handle:
 
 static void devfreq_boost_input_disconnect(struct input_handle *handle)
 {
+	#ifdef CONFIG_DYNAMIC_STUNE_BOOST
+	reset_stune_boost("top-app");
+	#endif
 	input_close_device(handle);
 	input_unregister_handle(handle);
 	kfree(handle);
